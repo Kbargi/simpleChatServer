@@ -16,6 +16,7 @@
 #include "chat.pb.h"
 #include "Room.h"
 #include "SharedContainers.h"
+
 class Room;
 class RoomManager {
    typedef boost::shared_mutex Lock;
@@ -27,13 +28,16 @@ class RoomManager {
       ~RoomManager() {}
 
       void processRequest(int, chat::Request&);
+      void notifyUserEscape(int);
+
       void static sendResponse(int, const std::string&, chat::Response_Type, chat::Response_ResultCode, const std::string&, const std::string&, const std::string&);
+
    private:
 
       void processDelivery(int, std::string&, std::string&, std::string&, std::string&);
       void processRoomCreation(int, std::string&, std::string&, std::string&, std::string&);
       void processJoin(int, std::string&, std::string&, std::string&, std::string&);
-      void processLeave(int, std::string&, std::string&, std::string&);
+      void processLeave(int, std::string&, std::string&, std::string&, bool force = false);
 
       std::hash<std::string> m_hashFunc;
 
@@ -42,9 +46,9 @@ class RoomManager {
          Lock mutex;
       } m_rooms[ROOMS_ARRAY_LEN];
 
-      SharedMap<int, std::string, std::unordered_map<int, std::string>> m_sock2RoomName;
+      SharedMap<int, std::string> m_sock2RoomName;
 
-      struct RoomGroup& getGroup(std::string& key) {
+      struct RoomGroup& getGroup(const std::string& key) {
          return m_rooms[m_hashFunc(key) % ROOMS_ARRAY_LEN];
       }
 };

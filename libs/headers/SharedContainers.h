@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include <memory>
+#include <unordered_map>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/thread/shared_mutex.hpp>
@@ -39,7 +40,7 @@ class SharedQueue {
       const size_t m_limit;
       std::mutex m_mutex;
 };
-template <class key, class value, class Container = std::unordered_map<key, value>>
+template <class key, class value>
 class SharedMap {
    public:
       void remove(key k) {
@@ -52,11 +53,11 @@ class SharedMap {
       }
       value get(key k) {
          LOCK(m_mutex);
-         Container::iterator it = m_container.find(k);
+         auto it = m_container.find(k);
          return it != m_container.end() ? it->second : value();
       }
    private:
-      Container m_container;
+      std::unordered_map<key, value> m_container;
       std::mutex m_mutex;
 };
 template <class T, class Container, class Comparator>

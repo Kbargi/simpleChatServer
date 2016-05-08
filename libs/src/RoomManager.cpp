@@ -7,6 +7,11 @@ void RoomManager::processRequest(int clientSocket, chat::Request& req) {
    userPassword = req.userpassword();
    userName = req.username();
    content = req.content();
+
+   if(roomName.empty()) {
+      RoomManager::sendResponse(clientSocket, roomName, chat::Response::UNKNOWN, chat::Response::NOT_SUPPORTED, std::string("Unknown operation"), std::string(), std::string());
+      return;
+   }
    try {
       switch(req.operation()) {
          case chat::Request::DELIVER: //most common - keep this first
@@ -81,7 +86,7 @@ void RoomManager::processJoin(int clientSocket, std::string& roomName, std::stri
       if( it != group.rooms.end() ) {
          if(it->second->getPassword() == roomPassword && it->second->getRoomId() == roomName) {
             it->second->addUser(user);
-            //rozeslij notyfikacje o dolaczeniu nowego czlonka ...
+            it->second->notifyOnEvent(clientSocket, std::string("joined room"));
          } else {
             RoomManager::sendResponse(clientSocket, roomName, chat::Response::JOIN_2_ROOM, chat::Response::LIMITED_ACCESS, std::string("Wrong login or password"), std::string(), std::string());
             return;
@@ -94,21 +99,21 @@ void RoomManager::processJoin(int clientSocket, std::string& roomName, std::stri
    m_sock2RoomName.add(clientSocket, roomName);
    RoomManager::sendResponse(clientSocket, roomName, chat::Response::JOIN_2_ROOM, chat::Response::OK, std::string("OK"), std::string(), std::string());
 }
-void RoomManager::processLeave(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword) {
+void RoomManager::processLeave(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword, bool force) {
    struct RoomGroup& group = getGroup(roomName);
+   m_sock2RoomName.remove(clientSocket);
    {
       WriteLock lock(group.mutex);
       std::unordered_map<std::string, std::shared_ptr<Room>>::iterator it = group.rooms.find(roomName);
       if( it != group.rooms.end()) {
-         if(it->second->getPassword() == roomPassword && it->second->getRoomId() == roomName) {
-            it->second->removeUser(clientSocket, userPassword);
-            if(!it->second->getUserCounter()) {
+         if(force || (it->second->getPassword() == roomPassword && it->second->getRoomId() == roomName)) {
+            if(! (it->second->getUserCounter() - 1) ) {
                group.rooms.erase(roomName);
+               return;
             } else {
-
+               it->second->notifyOnEvent(clientSocket, std::string("left room"));
             }
-            m_sock2RoomName.remove(clientSocket);
-            //pusc sygnal o usunieciu usera i zamknij socket + daj info innym userom
+            it->second->removeUser(clientSocket, userPassword, force);
          } else {
             RoomManager::sendResponse(clientSocket, roomName, chat::Response::LEAVE_ROOM, chat::Response::LIMITED_ACCESS, std::string("Wrong login or password"), std::string(), std::string());
             return;
@@ -119,7 +124,14 @@ void RoomManager::processLeave(int clientSocket, std::string& roomName, std::str
       }
    }
 }
-//notyfikacja o opuszczeniu do uzytkownikow, gdy ostatni user to zamknij caly room
+
+void RoomManager::notifyUserEscape(int socket) {
+   std::string roomName = m_sock2RoomName.get(socket);
+
+   if(!roomName.empty()) {
+      processLeave(socket, roomName, roomName, roomName, true);
+   }
+}
 
 void RoomManager::sendResponse(int s, const std::string& roomName, chat::Response_Type type, chat::Response_ResultCode res, const std::string& description, const std::string& content, const std::string& sender) {
    std::string response;

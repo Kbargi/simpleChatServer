@@ -21,3 +21,12 @@ void Room::notifyAllUsers(int clientSocket, std::string& userPassword, std::stri
       RoomManager::sendResponse(clientIt->second->getSocket(), m_roomId, chat::Response::DELIVERY_CONFIRMATION, chat::Response::NOT_FOUND, std::string("User not found"), std::string(), std::string());
    }
 }
+
+void Room::notifyOnEvent(int socket, const std::string& notification) {
+   UsersMap::iterator removedUserIt = m_users.find(socket);
+   if(removedUserIt == m_users.end()) return;
+
+   for(UsersMap::iterator uIt = m_users.begin() ; uIt != m_users.end() ; ++uIt) {
+      RoomManager::sendResponse(uIt->second->getSocket(), m_roomId, chat::Response::ROOM_STATUS_INFO, chat::Response::OK, std::string("OK"), removedUserIt->second->getName() + std::string(" ") + notification, removedUserIt->second->getName());
+   }
+}
