@@ -1,0 +1,48 @@
+// [START declaration]
+syntax = "proto3";
+package chat;
+// [END declaration]
+
+message Request {
+   enum Type {
+      CREATE_ROOM = 0;
+      JOIN_2_ROOM = 1;
+      LEAVE_ROOM = 2;
+      DELIVER = 3;
+   }
+ 
+   Type operation = 1;
+   string roomName = 2;
+   string roomPassword = 3;
+   string content = 4;
+   string userPassword = 5;
+   string userName = 6;
+}
+
+message Response {
+   enum Type {
+      CREATE_ROOM = 0;
+      JOIN_2_ROOM = 1;
+      LEAVE_ROOM = 2;
+      DELIVERY_CONFIRMATION = 3;
+      ROOM_STATUS_INFO = 4;
+      NOTIFICATION = 6;
+      UNKNOWN = 5;
+   }
+   
+   Type operation = 1;
+   string roomName = 2;
+   
+   enum ResultCode {
+      OK = 0;
+      NOT_FOUND = 1;
+      LIMITED_ACCESS = 2;
+      DUPLICATION = 3;
+      NOT_SUPPORTED = 4;
+   }
+   
+   ResultCode resultCode = 3;
+   string resultDescription = 4;
+   string content = 5;
+   string userName = 6;
+}
