@@ -26,3 +26,10 @@
 *.exe
 *.out
 *.app
+
+# Additional
+.cproject
+.project
+*.pb.cc
+*.pb.h
+TODO

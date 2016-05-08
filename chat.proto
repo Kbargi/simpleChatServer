@@ -1,5 +1,5 @@
 // [START declaration]
-syntax = "proto3";
+syntax = "proto2";
 package chat;
 // [END declaration]
 
@@ -7,42 +7,39 @@ message Request {
    enum Type {
       CREATE_ROOM = 0;
       JOIN_2_ROOM = 1;
-      LEAVE_ROOM = 2;
-      DELIVER = 3;
+      DELIVER = 2;
+      UNKNOWN = 3;
    }
  
-   Type operation = 1;
-   string roomName = 2;
-   string roomPassword = 3;
-   string content = 4;
-   string userPassword = 5;
-   string userName = 6;
+   optional Type operation = 1;
+   
+   optional string roomName = 2;
+   optional string roomPassword = 3;
+   
+   optional string userName = 4;
+   optional string userPassword = 5;
+   
+   optional string content = 6;
 }
 
 message Response {
    enum Type {
       CREATE_ROOM = 0;
       JOIN_2_ROOM = 1;
-      LEAVE_ROOM = 2;
-      DELIVERY_CONFIRMATION = 3;
-      ROOM_STATUS_INFO = 4;
-      NOTIFICATION = 6;
-      UNKNOWN = 5;
+      DELIVER = 2;
+      UNKNOWN = 3;
    }
    
-   Type operation = 1;
-   string roomName = 2;
+   optional Type operation = 1;
    
    enum ResultCode {
       OK = 0;
-      NOT_FOUND = 1;
-      LIMITED_ACCESS = 2;
-      DUPLICATION = 3;
-      NOT_SUPPORTED = 4;
+      ERROR = 1;
    }
    
-   ResultCode resultCode = 3;
-   string resultDescription = 4;
-   string content = 5;
-   string userName = 6;
+   optional ResultCode resultCode = 2;
+   optional string resultDescription = 3;
+   
+   optional string roomName = 4;
+   optional string senderName = 5;
 }

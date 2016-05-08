@@ -1,29 +1,34 @@
 #pragma once
-
 #include "Room.h"
-#include <unordered_map>
-#include <memory>
-#include <boost/lexical_cast.hpp>
-
 class User {
-   public:
-      User() = delete;
-      User(int s, std::string & name) : m_socket(s), m_name(name) {}
+    public:
+        User(const std::string& name, const std::string& password, const int socket)
+        : m_name(name), m_password(password), m_socket(socket), m_room(nullptr) {}
 
-      void setPassword(const std::string& p) {m_password = p;}
-      const std::string& getPassword() {return m_password;}
+        void setRoom(std::shared_ptr<Room> room) {
+            WriteLock l(m_setRoomMutex);
+            if(m_room) { throw std::logic_error(m_name + std::string(" already has a room"));}
+            if(!room) {throw std::runtime_error(std::string("given room ptr is null"));}
+            m_room = (room);
+        }
+        std::shared_ptr<Room> getRoom() {
+            ReadLock l(m_setRoomMutex);
+            return m_room;
+        }
 
-      void setRoomId(const std::string& p) {m_roomId = p;}
-      const std::string& getRoomId() {return m_roomId;}
-
-      int getSocket() {return m_socket;}
-
-      const std::string& getName() {return m_name;}
-
-      ~User() {}
-   private:
-      int m_socket;
-      std::string m_name;
-      std::string m_roomId;
-      std::string m_password;
+        const std::string& getName() {
+            return m_name;
+        }
+        const std::string& getPassword() {
+            return m_password;
+        }
+        const int getSocket() {
+            return m_socket;
+        }
+    private:
+        const std::string m_name;
+        const std::string m_password;
+        const int m_socket;
+        Lock m_setRoomMutex;
+        std::shared_ptr<Room> m_room;
 };

@@ -2,3 +2,8 @@
 2) develop test tools in python and protobuf
 3) develop logger class
 4) consider encryption
+5) improve performance by reducing locks
+6) reloading configuration on demand
+
+
+

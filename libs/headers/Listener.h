@@ -17,10 +17,9 @@
 #include <memory>
 
 #include "ThreadPool.h"
-#include "RoomManager.h"
 #include "SpecificTasks.h"
 
-
+#define CLIENT_DATA_BUFFER_SIZE 4096
 
 //remove
 #include <iostream>
@@ -42,10 +41,12 @@ class Listener {
 	    void handleNewConnection();
 	    void handleDataFromClient(int it);
 
+
 	    int m_listener;
+	    int m_fdmax;
+	    fd_set m_master;
 	    const std::string m_port;
 	    std::atomic<bool> m_stop;
-	    FileDescriptorSharedWrapper m_masterSet; // master file descriptor list
 	    std::shared_ptr<ThreadPool> m_pool;
-	    RoomManager m_roomManager;
+	    std::shared_ptr<RoomManager> m_roomManager;
 };

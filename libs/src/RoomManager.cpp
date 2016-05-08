@@ -1,5 +1,29 @@
 #include "RoomManager.h"
 
+void RoomManager::processEscape(int socket) {
+    std::shared_ptr<User> userP;
+    {
+        std::map<int, std::shared_ptr<User>>::iterator userIt;
+        UsersBulk& bulk = getBulk(socket);
+        WriteLock l(bulk.m_usersMutex);
+        userIt = bulk.m_users.find(socket);
+        if(userIt != bulk.m_users.end()) {
+        	userP = userIt->second;
+        	bulk.m_users.erase(userIt);
+        }
+        if(userP) {
+        	std::shared_ptr<Room> m_room = userP->getRoom();
+        	ReadLock l(m_room->m_mutex);
+        	if(m_room.use_count() <= 1) {
+        		bulk.m_rooms.erase(m_room->getName());
+        	} else {
+                /*TODO: notyfikuj o opuszczeniu pokoju*/
+            }
+        }
+    }
+    close(socket);
+}
+
 void RoomManager::processRequest(int clientSocket, chat::Request& req) {
    std::string roomPassword, roomName, userPassword, content, userName;
    roomName = req.roomname();
@@ -8,144 +32,161 @@ void RoomManager::processRequest(int clientSocket, chat::Request& req) {
    userName = req.username();
    content = req.content();
 
-   if(roomName.empty()) {
-      RoomManager::sendResponse(clientSocket, roomName, chat::Response::UNKNOWN, chat::Response::NOT_SUPPORTED, std::string("Unknown operation"), std::string(), std::string());
+   if(roomName.empty() || userName.empty()) {
+      RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(req.operation()), chat::Response::ERROR, std::string("Unknown operation"), userName);
       return;
    }
    try {
       switch(req.operation()) {
          case chat::Request::DELIVER: //most common - keep this first
-            processDelivery(clientSocket, roomName, roomPassword, userPassword, content);
+            processDelivery(clientSocket, roomName, roomPassword, userName, userPassword, content);
             break;
          case chat::Request::CREATE_ROOM:
-            processRoomCreation(clientSocket, roomName, roomPassword, userPassword, userName);
+            processRoomCreation(clientSocket, roomName, roomPassword, userName, userPassword);
             break;
          case chat::Request::JOIN_2_ROOM:
-            processJoin(clientSocket, roomName, roomPassword, userPassword, userName);
-            break;
-         case chat::Request::LEAVE_ROOM:
-            processLeave(clientSocket, roomName, roomPassword, userPassword);
+            processJoin(clientSocket, roomName, roomPassword, userName, userPassword);
             break;
          default:
-            RoomManager::sendResponse(clientSocket, roomName, chat::Response::UNKNOWN, chat::Response::NOT_SUPPORTED, std::string("Unknown operation"), std::string(), std::string());
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(req.operation()), chat::Response::ERROR, std::string("Unknown operation"), userName);
       }
    } catch(...) {
       std::cout << "Unknown expcetion while processing processRequest\n";
-      RoomManager::sendResponse(clientSocket, roomName, chat::Response::UNKNOWN, chat::Response::NOT_SUPPORTED, std::string("Unknown error"), std::string(), std::string());
+      RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(req.operation()), chat::Response::ERROR, std::string("Unknown exception while processing request"), userName);
    }
 }
-void RoomManager::processDelivery(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword, std::string& content) {
-   struct RoomGroup& group = getGroup(roomName);
-   {
-      ReadLock lock(group.mutex);
-      std::unordered_map<std::string, std::shared_ptr<Room>>::iterator it = group.rooms.find(roomName);
-      if( it != group.rooms.end() ) {
-         if(it->second->getRoomId() == roomName && it->second->getPassword() == roomPassword) {
-             it->second->notifyAllUsers(clientSocket, userPassword, content);
-         } else {
-            RoomManager::sendResponse(clientSocket, roomName, chat::Response::DELIVERY_CONFIRMATION, chat::Response::LIMITED_ACCESS, std::string("Wrong login or password"), std::string(), std::string());
+
+void RoomManager::processDelivery(int clientSocket, const std::string& roomName, const std::string& roomPassword, const std::string& userName, const std::string& userPassword, const std::string& content) {
+    UsersBulk& bulk = getBulk(clientSocket);
+    std::shared_ptr<User> userP;
+    {
+        ReadLock l(bulk.m_usersMutex);
+        std::map<int, std::shared_ptr<User>>::iterator it = bulk.m_users.find(clientSocket);
+        if(it != bulk.m_users.end()) {
+            userP = it->second;
+        }
+    }
+    if(!userP) {
+        RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::DELIVER), chat::Response::ERROR, std::string("User not connected to room"), userName);
+        return;
+    } else {
+        if(userP->getPassword() != userPassword) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::DELIVER), chat::Response::ERROR, std::string("Wrong password"), userName);
             return;
-         }
-      } else {
-         RoomManager::sendResponse(clientSocket, roomName, chat::Response::DELIVERY_CONFIRMATION, chat::Response::NOT_FOUND, std::string("Room does not exists"), std::string(), std::string());
-         return;
-      }
-   }
-   RoomManager::sendResponse(clientSocket, roomName, chat::Response::DELIVERY_CONFIRMATION, chat::Response::OK, std::string("OK"), std::string(), std::string());
-}
-void RoomManager::processRoomCreation(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword, std::string& userName) {
-   struct RoomGroup& group = getGroup(roomName);
-
-   std::shared_ptr<Room> room (std::make_shared<Room>(roomName, roomPassword));
-   std::shared_ptr<User> user (std::make_shared<User>(clientSocket, userName));
-
-   user->setRoomId(roomName);
-   user->setPassword(userPassword);
-   room->addUser(user);
-
-   {
-      WriteLock lock(group.mutex);
-      if( group.rooms.find(roomName) == group.rooms.end() ) {
-         group.rooms[roomName] = room;
-      } else {
-         RoomManager::sendResponse(clientSocket, roomName, chat::Response::CREATE_ROOM, chat::Response::DUPLICATION, std::string("Room already exists"), std::string(), std::string());
-         return;
-      }
-   }
-   m_sock2RoomName.add(clientSocket, roomName);
-   RoomManager::sendResponse(clientSocket, roomName, chat::Response::CREATE_ROOM, chat::Response::OK, std::string("OK"), std::string(), std::string());
-}
-void RoomManager::processJoin(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword, std::string& userName) {
-   struct RoomGroup& group = getGroup(roomName);
-   std::shared_ptr<User> user (std::make_shared<User>(clientSocket, userName));
-   user->setRoomId(roomName);
-   user->setPassword(userPassword);
-   {
-      WriteLock lock(group.mutex);
-      std::unordered_map<std::string, std::shared_ptr<Room>>::iterator it = group.rooms.find(roomName);
-      if( it != group.rooms.end() ) {
-         if(it->second->getPassword() == roomPassword && it->second->getRoomId() == roomName) {
-            it->second->addUser(user);
-            it->second->notifyOnEvent(clientSocket, std::string("joined room"));
-         } else {
-            RoomManager::sendResponse(clientSocket, roomName, chat::Response::JOIN_2_ROOM, chat::Response::LIMITED_ACCESS, std::string("Wrong login or password"), std::string(), std::string());
-            return;
-         }
-      } else {
-         RoomManager::sendResponse(clientSocket, roomName, chat::Response::JOIN_2_ROOM, chat::Response::NOT_FOUND, std::string("Room does not exists"), std::string(), std::string());
-         return;
-      }
-   }
-   m_sock2RoomName.add(clientSocket, roomName);
-   RoomManager::sendResponse(clientSocket, roomName, chat::Response::JOIN_2_ROOM, chat::Response::OK, std::string("OK"), std::string(), std::string());
-}
-void RoomManager::processLeave(int clientSocket, std::string& roomName, std::string& roomPassword, std::string& userPassword, bool force) {
-   struct RoomGroup& group = getGroup(roomName);
-   m_sock2RoomName.remove(clientSocket);
-   {
-      WriteLock lock(group.mutex);
-      std::unordered_map<std::string, std::shared_ptr<Room>>::iterator it = group.rooms.find(roomName);
-      if( it != group.rooms.end()) {
-         if(force || (it->second->getPassword() == roomPassword && it->second->getRoomId() == roomName)) {
-            if(! (it->second->getUserCounter() - 1) ) {
-               group.rooms.erase(roomName);
-               return;
-            } else {
-               it->second->notifyOnEvent(clientSocket, std::string("left room"));
+        }
+        std::shared_ptr<Room> roomP = userP->getRoom();
+        if(roomP) {
+            if(roomP->getPassword() != roomPassword) {
+                RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::DELIVER), chat::Response::ERROR, std::string("Wrong password"), userName);
+                return;
             }
-            it->second->removeUser(clientSocket, userPassword, force);
-         } else {
-            RoomManager::sendResponse(clientSocket, roomName, chat::Response::LEAVE_ROOM, chat::Response::LIMITED_ACCESS, std::string("Wrong login or password"), std::string(), std::string());
+            {
+                ReadLock l (roomP->m_mutex);
+                std::vector<std::weak_ptr<User>> usersSet = roomP->getUsers();
+                std::shared_ptr<User> user;
+                for(std::vector<std::weak_ptr<User>>::iterator it = usersSet.begin() ; it != usersSet.end() ;) {
+                    user = it->lock();
+                    if(user) {
+                        RoomManager::sendResponse(user->getSocket(), roomName, requestName2ResponseName(chat::Request::DELIVER), chat::Response::OK, content, userName);
+                        ++it;
+                    } else {
+                        it = usersSet.erase(it);
+                    }
+                }
+            }
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::DELIVER), chat::Response::OK, std::string(), userName);
+        }
+    }
+}
+
+void RoomManager::processRoomCreation(int clientSocket, const std::string& roomName, const std::string& roomPassword, const std::string& userName, const std::string& userPassword) {
+    UsersBulk& bulk = getBulk(clientSocket);
+    {
+        ReadLock l(bulk.m_usersMutex);
+        std::map<int, std::shared_ptr<User>>::iterator it = bulk.m_users.find(clientSocket);
+        if(it != bulk.m_users.end()) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("User exists"), userName);
             return;
-         }
-      } else {
-         RoomManager::sendResponse(clientSocket, roomName, chat::Response::LEAVE_ROOM, chat::Response::NOT_FOUND, std::string("Room does not exists"), std::string(), std::string());
-         return;
-      }
-   }
+        }
+        std::map<std::string, std::weak_ptr<Room>>::iterator itr = bulk.m_rooms.find(roomName);
+        if(itr != bulk.m_rooms.end()) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("Room already exists"), userName);
+            return;
+        }
+    }
+    std::shared_ptr<User> user;
+    user = std::make_shared<User>(userName, userPassword, clientSocket);
+    std::shared_ptr<Room> room;
+    room = std::make_shared<Room>(roomName, roomPassword);
+    room->addUser(user);
+    user->setRoom(room);
+    {
+        WriteLock l(bulk.m_usersMutex);
+        bulk.m_users[clientSocket] = user;
+        bulk.m_rooms[roomName] = room;
+    }
+    RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::OK, std::string("Room has been created"), userName);
 }
 
-void RoomManager::notifyUserEscape(int socket) {
-   std::string roomName = m_sock2RoomName.get(socket);
+void RoomManager::processJoin(int clientSocket, const std::string& roomName, const std::string& roomPassword, const std::string& userName, const std::string& userPassword) {
+    UsersBulk& bulk = getBulk(clientSocket);
+    {
+        ReadLock l(bulk.m_usersMutex);
+        std::map<int, std::shared_ptr<User>>::iterator it = bulk.m_users.find(clientSocket);
+        if(it != bulk.m_users.end()) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("User exists"), userName);
+            return;
+        }
+    }
 
-   if(!roomName.empty()) {
-      processLeave(socket, roomName, roomName, roomName, true);
-   }
+    std::shared_ptr<Room> room;
+    {
+        std::map<std::string, std::weak_ptr<Room>>::iterator it;
+        ReadLock l(bulk.m_usersMutex);
+        it = bulk.m_rooms.find(roomName);
+        if(it == bulk.m_rooms.end()) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("Room does not exist"), userName);
+            return;
+        }
+        room = it->second.lock();
+        if(!room) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("Room has been destroyed"), userName);
+            return;
+        }
+        if(room->getPassword() != roomPassword) {
+            RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::ERROR, std::string("Wrong room password"), userName);
+            return;
+        }
+    }
+    std::shared_ptr<User> user = std::make_shared<User>(userName, userPassword, clientSocket);
+    user->setRoom(room);
+    room->addUser(user);
+    /*TODO: dodac notyfikacje o dolaczeniu do innych userow z roomu*/
+    RoomManager::sendResponse(clientSocket, roomName, requestName2ResponseName(chat::Request::CREATE_ROOM), chat::Response::OK, std::string("You have joined to room"), userName);
 }
 
-void RoomManager::sendResponse(int s, const std::string& roomName, chat::Response_Type type, chat::Response_ResultCode res, const std::string& description, const std::string& content, const std::string& sender) {
-   std::string response;
-   chat::Response rsp;
+void RoomManager::sendResponse(const int socket, const std::string& roomName, chat::Response_Type respType, chat::Response_ResultCode rCode, const std::string& desc, const std::string& userName) {
+    std::string response;
+    chat::Response rsp;
+    int total = 0;
+    int n;
+    int len = response.size();
+    int bytesleft = len;
+    const char* buf = response.c_str();
 
-   rsp.set_operation(type);
-   rsp.set_roomname(roomName);
-   rsp.set_resultcode(res);
-   rsp.set_resultdescription(description);
-   rsp.set_content(content);
-   rsp.set_username(sender);
+    rsp.set_operation(respType);
+    rsp.set_roomname(roomName);
+    rsp.set_resultcode(rCode);
+    rsp.set_resultdescription(desc);
+    rsp.set_sendername(userName);
 
-   rsp.SerializeToString(&response);
+    rsp.SerializeToString(&response);
 
-   int bytes = send(s, (const char*)response.c_str(), response.size(), 0);
-   std::cout << "Sent " << bytes << " bytes\n";
+    while(total < len) {
+        n = send(socket, buf+total, bytesleft, 0);
+        if (n == -1) { break; }
+        total += n;
+        bytesleft -= n;
+    }
+    std::cout << "Sent " << total << "/" << len << " bytes to " << socket << "\n";
 }

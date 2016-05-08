@@ -23,8 +23,7 @@ int main(int argc, char** argv) {
       std::cout<< e.what();
    } catch(std::logic_error& e) {
       std::cout<< e.what();
-   }
-   catch(...) {
+   } catch(...) {
       std::cout << "NIEZNANY WYJATEK\n";
    }
    return 0;

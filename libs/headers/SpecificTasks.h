@@ -8,22 +8,36 @@
 #include "RoomManager.h"
 #include "SharedContainers.h"
 
-#define CLIENT_DATA_BUFFER_SIZE 25
-#define CLEAR_BUF(a) memset((a), (0), (sizeof(a)));
 
-class HandlerTask : public AbstractTask {
+class RequestHandlerTask : public AbstractTask {
 public:
-    HandlerTask() = delete;
-    HandlerTask(int s, FileDescriptorSharedWrapper& fdSet, RoomManager& roomManager) :
-                AbstractTask(TaskPriority::NORMAL), mClientSocket(s), fdSet(fdSet), m_roomManager(roomManager) {}
+	RequestHandlerTask() = delete;
+	RequestHandlerTask(int s, std::shared_ptr<RoomManager> roomManager, chat::Request&& request) :
+                AbstractTask(TaskPriority::NORMAL), m_clientSocket(s), m_roomManager(roomManager), m_request(std::move(request)) {}
 
-    virtual ~HandlerTask(){};
+    virtual ~RequestHandlerTask(){};
 
     virtual void operator()();
 
 private:
 
-    int mClientSocket;
-    FileDescriptorSharedWrapper& fdSet;
-    RoomManager& m_roomManager;
+    int m_clientSocket;
+    std::shared_ptr<RoomManager> m_roomManager;
+    chat::Request m_request;
+};
+
+class OnUserEscapeTask : public AbstractTask {
+public:
+	OnUserEscapeTask() = delete;
+	OnUserEscapeTask(int s, std::shared_ptr<RoomManager> roomManager) :
+                AbstractTask(TaskPriority::HIGH), m_clientSocket(s), m_roomManager(roomManager) {}
+
+    virtual ~OnUserEscapeTask(){};
+
+    virtual void operator()();
+
+private:
+
+    int m_clientSocket;
+    std::shared_ptr<RoomManager> m_roomManager;
 };
