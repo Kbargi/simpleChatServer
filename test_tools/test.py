@@ -4,10 +4,13 @@ import socket
 import string
 import sys
 
-m = chat_pb2.Wiadomosc()
-m.type = chat_pb2.Wiadomosc.TALK
-m.content = str("TO JEST MOJA WIADOMOSC:)")
-#m.RecipientId = 123
+m = chat_pb2.Request()
+m.operation = chat_pb2.Request.CREATE_ROOM
+m.roomName = str("NAZWA_LOSOWA")
+m.roomPassword = str("HASLO_LOSOWE")
+m.userName = str("USER_NAME")
+m.userPassword = str("USER_PASSWORD")
+m.content = str("TRESC...")
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -21,6 +24,10 @@ try:
         print >>sys.stderr, 'sending "%s\n"' % m
         time.sleep(5.0/1000.0);
         sock.sendall(m)
+        print str("czekam...")
+        aaa = sock.recv(4096);
+        print str("odebralem: ")
+        print aaa
 finally:
     print >>sys.stderr, 'closing socket'
     sock.close()

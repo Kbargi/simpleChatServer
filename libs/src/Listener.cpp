@@ -114,7 +114,6 @@ void Listener::handleDataFromClient(int clientSocket) {
 		   buffer[nbytes] = '\0';
 	      // we got some data from a client
 	      chat::Request request;
-	      std::cout << "przed parserem\n";
 	      if( !request.ParseFromArray(buffer, nbytes) ) {
 	         FD_CLR(clientSocket, &m_master);
 	         m_pool->add(std::make_shared<OnUserEscapeTask>(clientSocket, m_roomManager));

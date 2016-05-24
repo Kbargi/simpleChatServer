@@ -166,13 +166,7 @@ void RoomManager::processJoin(int clientSocket, const std::string& roomName, con
 }
 
 void RoomManager::sendResponse(const int socket, const std::string& roomName, chat::Response_Type respType, chat::Response_ResultCode rCode, const std::string& desc, const std::string& userName) {
-    std::string response;
     chat::Response rsp;
-    int total = 0;
-    int n;
-    int len = response.size();
-    int bytesleft = len;
-    const char* buf = response.c_str();
 
     rsp.set_operation(respType);
     rsp.set_roomname(roomName);
@@ -180,13 +174,20 @@ void RoomManager::sendResponse(const int socket, const std::string& roomName, ch
     rsp.set_resultdescription(desc);
     rsp.set_sendername(userName);
 
-    rsp.SerializeToString(&response);
+    std::string response;
+    int total = 0;
+    int n;
 
+    rsp.SerializeToString(&response);
+    const char* buf = response.c_str();
+    int len = response.size();
+    int bytesleft = len;
     while(total < len) {
         n = send(socket, buf+total, bytesleft, 0);
         if (n == -1) { break; }
         total += n;
         bytesleft -= n;
+        std::cout << total << "/" <<len<<"\n";
     }
     std::cout << "Sent " << total << "/" << len << " bytes to " << socket << "\n";
 }
