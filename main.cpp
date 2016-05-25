@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
    } catch(std::logic_error& e) {
       std::cout<< e.what();
    } catch(...) {
-      std::cout << "NIEZNANY WYJATEK\n";
+      std::cout << "Unknown exception\n";
    }
    return 0;
 }

@@ -3,7 +3,7 @@ import time
 import socket                                                                                                                                                 
 import string
 import sys
-
+import struct
 m = chat_pb2.Request()
 m.operation = chat_pb2.Request.CREATE_ROOM
 m.roomName = str("NAZWA_LOSOWA")
@@ -20,6 +20,8 @@ print >>sys.stderr, 'connecting to %s port %s' % server_address
 sock.connect(server_address)
 try:
     m =  m.SerializeToString()
+    size = len(m)
+    m = str(struct.pack('!I', size)) + m
     while True:# Send data
         print >>sys.stderr, 'sending "%s\n"' % m
         time.sleep(5.0/1000.0);

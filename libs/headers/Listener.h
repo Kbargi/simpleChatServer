@@ -1,5 +1,6 @@
 #pragma once
 #define HANDLER_ARRAY_SIZE 3
+#define HEADER_BYTE_SIZE 4
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fcntl.h>
 
 #include <string>
 #include <stdexcept>
@@ -34,7 +36,8 @@ class Handler {
         ~Handler() {}
         void operator()();
     private:
-
+        int recvHeader(int socket, size_t* buffer, size_t size);
+        int recvBody(int socket, void* buffer, size_t size);
         void handleDataFromClient(int clientSocket);
         void handleNewConnection();
         int m_readPipeSocket;

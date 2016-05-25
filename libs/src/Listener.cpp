@@ -41,7 +41,7 @@ void Handler::handleDataFromClient(int clientSocket) {
    int nbytes = -1;
    unsigned char buffer[CLIENT_DATA_BUFFER_SIZE];
 
-   if((nbytes = ::recv(clientSocket, buffer, sizeof(buffer) - 1, 0)) <= 0) {
+   if((nbytes = recvBody(clientSocket, buffer, sizeof(buffer) - 1)) <= 0) {
        // got error or connection closed by client
       if (nbytes == 0) {// connection closed
          std::cout << "socket " << clientSocket << " hung up\n";//zamien na log
@@ -63,6 +63,41 @@ void Handler::handleDataFromClient(int clientSocket) {
          m_pool->add(std::make_shared<RequestHandlerTask>(clientSocket, m_roomManager, std::move(request)));
       }
    }
+}
+
+int Handler::recvBody(int socket, void* buffer, size_t bufferSize) {
+
+    size_t to_read = 0;
+    if(recvHeader(socket, &to_read, HEADER_BYTE_SIZE) <= 0) {
+        std::cout << "recvHeader -1 \n";
+        return -1;
+    }
+    std::cout << "recvHeader po " << to_read << "\n";
+    size_t read = 0;
+    int nbytes = 0;
+    while(read < bufferSize && to_read > 0) {
+        nbytes = recv(socket, buffer, to_read, 0);
+        if(nbytes <= 0)
+            return nbytes;
+        read += nbytes;
+        to_read -= nbytes;
+    }
+    std::cout << read << " zwracam\n";
+    return read;
+}
+
+int Handler::recvHeader(int socket, size_t* buffer, size_t size) {
+    size_t to_read;
+    int nbytes = recv(socket, &to_read, size, 0);
+    if(nbytes <= 0) return nbytes;
+    size_t a = to_read;
+    to_read = ntohl(to_read);
+    std::cout << "recVHeader odebralem header: " << to_read << " nbytes: " << nbytes <<" odebrane org: " << a << "\n";
+    if(to_read > 0) {
+        *buffer = to_read;
+        return to_read;
+    }
+    return 0;
 }
 
 Listener::Listener(const std::string& port, size_t poolSize) : m_listener(-1), m_fdmax(-1), m_port(port), m_stop(false) {
@@ -101,18 +136,20 @@ void Listener::init() {
       if ((m_listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
          continue;
       }
-         // lose the pesky "address already in use" error message
-         setsockopt(m_listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-         if (bind(m_listener, p->ai_addr, p->ai_addrlen) < 0) {
-            close(m_listener);
-            continue;
-         }
-         break;
+      // lose the pesky "address already in use" error message
+      setsockopt(m_listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+      if (bind(m_listener, p->ai_addr, p->ai_addrlen) < 0) {
+         close(m_listener);
+         continue;
+      }
+      break;
    }
    if(!p) {
       throw std::runtime_error(std::string("failed to bind"));
    }
    freeaddrinfo(ai); // all done with this
+
+   fcntl(m_listener, F_SETFL, O_NONBLOCK);
 
    if (listen(m_listener, 10) == -1) {
       throw std::runtime_error(std::string("listen failed"));
@@ -162,6 +199,7 @@ void Listener::handleNewConnection() {
     if(newfd == -1)
         std::cout<<"accept failed\n";////zamienic na log
     else {
+         fcntl(newfd, F_SETFL, O_NONBLOCK);
          int counter = 10;
          while(write(m_handlers[newfd % HANDLER_ARRAY_SIZE].pipe[1], &newfd, sizeof(newfd)) != sizeof(newfd) || !counter--) {
             if(counter < 10) {
