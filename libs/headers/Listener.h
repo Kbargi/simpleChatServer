@@ -1,5 +1,5 @@
 #pragma once
-
+#define HANDLER_ARRAY_SIZE 3
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +24,26 @@
 //remove
 #include <iostream>
 
+class Handler {
+    public:
+        Handler(int socket, std::shared_ptr<ThreadPool> t, std::shared_ptr<RoomManager> r)
+            : m_readPipeSocket(socket), fd_max(socket), m_stop(false), m_pool(t), m_roomManager(r) {
+            FD_ZERO(&m_master);
+            FD_SET(m_readPipeSocket, &m_master);
+        }
+        ~Handler() {}
+        void operator()();
+    private:
+
+        void handleDataFromClient(int clientSocket);
+        void handleNewConnection();
+        int m_readPipeSocket;
+        fd_set m_master;
+        int fd_max;
+        std::atomic<bool> m_stop;
+        std::shared_ptr<ThreadPool> m_pool;
+        std::shared_ptr<RoomManager> m_roomManager;
+};
 class Listener {
     public:
 
@@ -36,17 +56,21 @@ class Listener {
 	    virtual void run();
 
     private:
-
-	    void* get_in_addr(struct sockaddr*);
-	    void handleNewConnection();
-	    void handleDataFromClient(int it);
+        void* get_in_addr(struct sockaddr*);
+        void handleNewConnection();
 
 
-	    int m_listener;
-	    int m_fdmax;
-	    fd_set m_master;
-	    const std::string m_port;
-	    std::atomic<bool> m_stop;
-	    std::shared_ptr<ThreadPool> m_pool;
-	    std::shared_ptr<RoomManager> m_roomManager;
+        int m_listener;
+        int m_fdmax;
+        fd_set m_master;
+        const std::string m_port;
+        bool m_stop;
+        std::shared_ptr<ThreadPool> m_pool;
+        std::shared_ptr<RoomManager> m_roomManager;
+
+        struct InternalHandler {
+            std::shared_ptr<Handler> m_handler;
+            int pipe[2];
+            std::unique_ptr<std::thread> m_handlerExecutor;
+        } m_handlers[HANDLER_ARRAY_SIZE];
 };

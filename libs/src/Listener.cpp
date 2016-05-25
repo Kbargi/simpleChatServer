@@ -1,13 +1,96 @@
-/*Code based on: http://beej.us/guide/bgnet/output/html/multipage/advanced.html*/
-
 #include "Listener.h"
+
+void Handler::operator()() {
+    std::cout << "Handler operator()\n";
+    fd_set read_fd;
+    FD_ZERO(&read_fd);
+    while(!m_stop) {
+        read_fd = m_master;
+        if(select(fd_max + 1, &read_fd, NULL, NULL, NULL) == -1)
+            throw std::runtime_error(std::string("Handler select failed"));
+        for(int i = 0 ; i <= fd_max ; ++i) {
+            if(FD_ISSET(i, &read_fd)) {
+                std::cout << "set: " << i<<"\n";
+                if(i == m_readPipeSocket) { // event from main select
+                    std::cout << "handlingNewDataClient\n";
+                    handleNewConnection();
+                } else {
+                    std::cout << "handlingDataFromClient\n";
+                    handleDataFromClient(i);
+                }
+            }
+        }
+    }
+}
+
+void Handler::handleNewConnection() {
+    int newFd;
+    std::cout << "handleNewConnection\n";
+    ssize_t r = read(m_readPipeSocket, &newFd, sizeof(newFd));
+    std::cout << "newFd = " << newFd << "\n";
+    if(r == sizeof(newFd)) {
+        fd_max = newFd > fd_max ? newFd : fd_max;
+        FD_SET(newFd, &m_master);
+    } else if (!r) {
+        FD_CLR(m_readPipeSocket, &m_master);
+        m_stop = true;
+    } else {
+        std::cout << "Unknown error\n";
+    }
+}
+
+void Handler::handleDataFromClient(int clientSocket) {
+   int nbytes = -1;
+   unsigned char buffer[CLIENT_DATA_BUFFER_SIZE];
+
+   if((nbytes = ::recv(clientSocket, buffer, sizeof(buffer) - 1, 0)) <= 0) {
+       // got error or connection closed by client
+      if (nbytes == 0) {// connection closed
+         std::cout << "socket " << clientSocket << " hung up\n";//zamien na log
+      } else {
+         std::cout<<"recv failed\n";
+      }
+      FD_CLR(clientSocket, &m_master);
+      m_pool->add(std::make_shared<OnUserEscapeTask>(clientSocket, m_roomManager));
+      return;
+   } else {
+   buffer[nbytes] = '\0';
+      // we got some data from a client
+      chat::Request request;
+      if( !request.ParseFromArray(buffer, nbytes) ) {
+         FD_CLR(clientSocket, &m_master);
+         m_pool->add(std::make_shared<OnUserEscapeTask>(clientSocket, m_roomManager));
+         return;
+      } else { // process received message
+         m_pool->add(std::make_shared<RequestHandlerTask>(clientSocket, m_roomManager, std::move(request)));
+      }
+   }
+}
 
 Listener::Listener(const std::string& port, size_t poolSize)
 : m_listener(-1), m_fdmax(-1), m_port(port), m_stop(false), m_pool(std::make_shared<ThreadPool>(poolSize)),
-  m_roomManager(std::make_shared<RoomManager>()) {}
+  m_roomManager(std::make_shared<RoomManager>())
+{
+
+    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
+        if(pipe(m_handlers[i].pipe) == -1 ) {
+            throw std::runtime_error(std::string("pipe error"));
+        }
+        m_handlers[i].m_handler = std::make_shared<Handler>(m_handlers[i].pipe[0], m_pool, m_roomManager);
+        m_handlers[i].m_handlerExecutor.reset( new std::thread(&Handler::operator(), m_handlers[i].m_handler));
+    }
+}
 
 Listener::~Listener() {
-	m_pool->stop();
+    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
+        close(m_handlers[i].pipe[0]);
+        close(m_handlers[i].pipe[1]);
+    }
+    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
+        if(m_handlers[i].m_handlerExecutor->joinable())
+        m_handlers[i].m_handlerExecutor->join();
+    }
+    m_pool->stop();
 }
 
 void Listener::init() {
@@ -59,16 +142,16 @@ void Listener::run() {
     while(!m_stop) {
         read_fds = m_master;
         if (select(m_fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
-        	throw std::runtime_error(std::string("select failed"));
+            throw std::runtime_error(std::string("Main select failed"));
         // run through the existing connections looking for data to read
         for(int i = 0; i <= m_fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) { // we got one!!
-            	if (i == m_listener) {
+                if (i == m_listener) {
                     this->handleNewConnection();
-            	}
-            	else {
-            		this->handleDataFromClient(i);
-            	}
+                }
+                else {
+                    std::cout<< "unknown socket " << i << " writes to main select\n";
+                }
             } // END got new incoming connection
         } //for through existing connections
     } //main while
@@ -87,8 +170,15 @@ void Listener::handleNewConnection() {
     if(newfd == -1)
         std::cout<<"accept failed\n";////zamienic na log
     else {
-    	m_fdmax = m_fdmax < newfd ? newfd : m_fdmax;
-        FD_SET(newfd, &m_master); // add to master set
+         int counter = 10;
+         while(write(m_handlers[newfd % HANDLER_ARRAY_SIZE].pipe[1], &newfd, sizeof(newfd)) != sizeof(newfd) || !counter--) {
+            if(counter < 10) {
+                std::cout << "sent new socket after " << 10 - counter << " cycles\n";
+                if(!counter)
+                    close(newfd);
+            }
+         }
+
          std::cout<< "new connection from " <<
              inet_ntop(remoteaddr.ss_family,
                  get_in_addr((struct sockaddr*)&remoteaddr),
@@ -96,31 +186,3 @@ void Listener::handleNewConnection() {
              " on socket " << newfd << "\n"; //zamienic na log
     }
 }
-void Listener::handleDataFromClient(int clientSocket) {
-   int nbytes = -1;
-   unsigned char buffer[CLIENT_DATA_BUFFER_SIZE];
-
-	   if((nbytes = ::recv(clientSocket, buffer, sizeof(buffer) - 1, 0)) <= 0) {
-	       // got error or connection closed by client
-	      if (nbytes == 0) {// connection closed
-	         std::cout << "socket " << clientSocket << " hung up\n";//zamien na log
-	      } else {
-	         std::cout<<"recv failed\n"; //zamien na log
-	      }
-	      FD_CLR(clientSocket, &m_master);
-	      m_pool->add(std::make_shared<OnUserEscapeTask>(clientSocket, m_roomManager));
-	      return;
-	   } else {
-		   buffer[nbytes] = '\0';
-	      // we got some data from a client
-	      chat::Request request;
-	      if( !request.ParseFromArray(buffer, nbytes) ) {
-	         FD_CLR(clientSocket, &m_master);
-	         m_pool->add(std::make_shared<OnUserEscapeTask>(clientSocket, m_roomManager));
-	         return;
-	      } else { // process received message
-	         m_pool->add(std::make_shared<RequestHandlerTask>(clientSocket, m_roomManager, std::move(request)));
-	      }
-	   }
-}
-
