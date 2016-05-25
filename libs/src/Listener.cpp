@@ -1,7 +1,7 @@
 #include "Listener.h"
 
 void Handler::operator()() {
-    std::cout << "Handler operator()\n";
+    std::cout << "Handler " << m_readPipeSocket << " started\n";
     fd_set read_fd;
     FD_ZERO(&read_fd);
     while(!m_stop) {
@@ -10,7 +10,6 @@ void Handler::operator()() {
             throw std::runtime_error(std::string("Handler select failed"));
         for(int i = 0 ; i <= fd_max ; ++i) {
             if(FD_ISSET(i, &read_fd)) {
-                std::cout << "set: " << i<<"\n";
                 if(i == m_readPipeSocket) { // event from main select
                     std::cout << "handlingNewDataClient\n";
                     handleNewConnection();
@@ -25,14 +24,13 @@ void Handler::operator()() {
 
 void Handler::handleNewConnection() {
     int newFd;
-    std::cout << "handleNewConnection\n";
     ssize_t r = read(m_readPipeSocket, &newFd, sizeof(newFd));
-    std::cout << "newFd = " << newFd << "\n";
     if(r == sizeof(newFd)) {
         fd_max = newFd > fd_max ? newFd : fd_max;
         FD_SET(newFd, &m_master);
     } else if (!r) {
         FD_CLR(m_readPipeSocket, &m_master);
+        close(m_readPipeSocket);
         m_stop = true;
     } else {
         std::cout << "Unknown error\n";
@@ -67,30 +65,21 @@ void Handler::handleDataFromClient(int clientSocket) {
    }
 }
 
-Listener::Listener(const std::string& port, size_t poolSize)
-: m_listener(-1), m_fdmax(-1), m_port(port), m_stop(false), m_pool(std::make_shared<ThreadPool>(poolSize)),
-  m_roomManager(std::make_shared<RoomManager>())
-{
+Listener::Listener(const std::string& port, size_t poolSize) : m_listener(-1), m_fdmax(-1), m_port(port), m_stop(false) {
+    std::shared_ptr<ThreadPool> pool (new ThreadPool(poolSize), [](ThreadPool* tpP){ tpP->stop(); delete tpP;});
+    std::shared_ptr<RoomManager> roomManager = std::make_shared<RoomManager>();
 
     for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
         if(pipe(m_handlers[i].pipe) == -1 ) {
             throw std::runtime_error(std::string("pipe error"));
         }
-        m_handlers[i].m_handler = std::make_shared<Handler>(m_handlers[i].pipe[0], m_pool, m_roomManager);
+        m_handlers[i].m_handler = std::make_shared<Handler>(m_handlers[i].pipe[0], pool, roomManager);
         m_handlers[i].m_handlerExecutor.reset( new std::thread(&Handler::operator(), m_handlers[i].m_handler));
     }
 }
 
 Listener::~Listener() {
-    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
-        close(m_handlers[i].pipe[0]);
-        close(m_handlers[i].pipe[1]);
-    }
-    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
-        if(m_handlers[i].m_handlerExecutor->joinable())
-        m_handlers[i].m_handlerExecutor->join();
-    }
-    m_pool->stop();
+    stop();
 }
 
 void Listener::init() {
@@ -139,9 +128,12 @@ void Listener::run() {
 	// keep track of the biggest file descriptor
 	m_fdmax = m_listener; // so far, it's this one
 
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
     while(!m_stop) {
         read_fds = m_master;
-        if (select(m_fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
+        if (select(m_fdmax+1, &read_fds, NULL, NULL, &tv) == -1)
             throw std::runtime_error(std::string("Main select failed"));
         // run through the existing connections looking for data to read
         for(int i = 0; i <= m_fdmax; i++) {
@@ -185,4 +177,16 @@ void Listener::handleNewConnection() {
                  remoteIP, INET6_ADDRSTRLEN) <<
              " on socket " << newfd << "\n"; //zamienic na log
     }
+}
+
+void Listener::stop() {
+    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
+        //pipe[0] is being closed in particular-i handler
+        close(m_handlers[i].pipe[1]);
+    }
+    for(int i = 0 ; i < HANDLER_ARRAY_SIZE ; ++i) {
+        if(m_handlers[i].m_handlerExecutor->joinable())
+        m_handlers[i].m_handlerExecutor->join();
+    }
+    m_stop = true;
 }

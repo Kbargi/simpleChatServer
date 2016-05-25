@@ -54,6 +54,7 @@ class Listener {
 
 	    virtual void init();
 	    virtual void run();
+	    void stop();
 
     private:
         void* get_in_addr(struct sockaddr*);
@@ -65,8 +66,6 @@ class Listener {
         fd_set m_master;
         const std::string m_port;
         bool m_stop;
-        std::shared_ptr<ThreadPool> m_pool;
-        std::shared_ptr<RoomManager> m_roomManager;
 
         struct InternalHandler {
             std::shared_ptr<Handler> m_handler;
