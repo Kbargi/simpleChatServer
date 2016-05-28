@@ -4,32 +4,65 @@ import socket
 import string
 import sys
 import struct
-m = chat_pb2.Request()
-m.operation = chat_pb2.Request.CREATE_ROOM
-m.roomName = str("NAZWA_LOSOWA")
-m.roomPassword = str("HASLO_LOSOWE")
-m.userName = str("USER_NAME")
-m.userPassword = str("USER_PASSWORD")
-m.content = str("TRESC...")
-# Create a TCP/IP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# Connect the socket to the port where the server is listening
-server_address = ('localhost', 18015)
-print >>sys.stderr, 'connecting to %s port %s' % server_address
-sock.connect(server_address)
-try:
-    m =  m.SerializeToString()
-    size = len(m)
-    m = str(struct.pack('!I', size)) + m
-    while True:# Send data
-        print >>sys.stderr, 'sending "%s\n"' % m
-        time.sleep(5.0/1000.0);
-        sock.sendall(m)
-        print str("czekam...")
-        aaa = sock.recv(4096);
-        print str("odebralem: ")
-        print aaa
-finally:
-    print >>sys.stderr, 'closing socket'
-    sock.close()
+import random
+import string
+def custom_content(i):
+        return str('Czesc: ') + str(i)
+def content_generator(chars=string.ascii_uppercase + string.digits + string.ascii_lowercase):
+        return ''.join(random.choice(chars) for _ in range(random.randrange(0, 4000)))
+class Room:
+    def __init__(self, name, password):
+        self.name = name
+        self.password = password
+    def getName(self):
+        return self.name
+    def getPassword(self):
+        return self.password
+class User:
+    def __init__(self, name, password, address = 'localhost', port = 18015):
+        self.name = name
+        self.password = password
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((address, port))
+        self.room = None
+    def sendRequest(self, message):
+        message = str(struct.pack('!I', len(message))) + message
+        self.sock.sendall(message)
+        resp = chat_pb2.Response()
+        resp.ParseFromString(self.sock.recv(4096))
+        return resp
+    def createRoom(self, name, password):
+        if self.room is None:
+            self.room = Room(name, password)
+        message = chat_pb2.Request()
+        message.operation = chat_pb2.Request.CREATE_ROOM
+        message.roomName = self.room.getName()
+        message.roomPassword = self.room.getPassword()
+        message.userName = self.name
+        message.userPassword = self.password
+        return self.sendRequest(message.SerializeToString())
+    def join_2_room(self, roomName, roomPassword):
+        if self.room is None:
+            self.room = Room(roomName, roomPassword)
+        message = chat_pb2.Request()
+        message.operation = chat_pb2.Request.JOIN_2_ROOM
+        message.roomName = self.room.getName()
+        message.roomPassword = self.room.getPassword()
+        message.userName = self.name
+        message.userPassword = self.password
+        return self.sendRequest(message.SerializeToString())
+    def deliver(self, roomName, roomPassword):
+        if self.room is None:
+            self.room = Room(roomName, roomPassword)
+        message = chat_pb2.Request()
+        message.operation = chat_pb2.Request.DELIVER
+        message.roomName = self.room.getName()
+        message.roomPassword = self.room.getPassword()
+        message.userName = self.name
+        message.userPassword = self.password
+        message.content = custom_content(self.name)#content_generator()
+        return self.sendRequest(message.SerializeToString())
+    def recvDelivery(self):
+        resp = chat_pb2.Response()
+        resp.ParseFromString(self.sock.recv(4096))
+        return resp

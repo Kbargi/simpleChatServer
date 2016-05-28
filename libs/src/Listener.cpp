@@ -11,10 +11,8 @@ void Handler::operator()() {
         for(int i = 0 ; i <= fd_max ; ++i) {
             if(FD_ISSET(i, &read_fd)) {
                 if(i == m_readPipeSocket) { // event from main select
-                    std::cout << "handlingNewDataClient\n";
                     handleNewConnection();
                 } else {
-                    std::cout << "handlingDataFromClient\n";
                     handleDataFromClient(i);
                 }
             }
@@ -68,13 +66,13 @@ void Handler::handleDataFromClient(int clientSocket) {
 int Handler::recvBody(int socket, void* buffer, size_t bufferSize) {
 
     size_t to_read = 0;
-    if(recvHeader(socket, &to_read, HEADER_BYTE_SIZE) <= 0) {
-        std::cout << "recvHeader -1 \n";
-        return -1;
+    int res;
+    if((res = recvHeader(socket, &to_read, HEADER_BYTE_SIZE)) <= 0) {
+        return res;
     }
-    std::cout << "recvHeader po " << to_read << "\n";
     size_t read = 0;
     int nbytes = 0;
+    if(to_read > bufferSize) return -1;
     while(read < bufferSize && to_read > 0) {
         nbytes = recv(socket, buffer, to_read, 0);
         if(nbytes <= 0)
@@ -82,7 +80,6 @@ int Handler::recvBody(int socket, void* buffer, size_t bufferSize) {
         read += nbytes;
         to_read -= nbytes;
     }
-    std::cout << read << " zwracam\n";
     return read;
 }
 
@@ -90,9 +87,7 @@ int Handler::recvHeader(int socket, size_t* buffer, size_t size) {
     size_t to_read;
     int nbytes = recv(socket, &to_read, size, 0);
     if(nbytes <= 0) return nbytes;
-    size_t a = to_read;
     to_read = ntohl(to_read);
-    std::cout << "recVHeader odebralem header: " << to_read << " nbytes: " << nbytes <<" odebrane org: " << a << "\n";
     if(to_read > 0) {
         *buffer = to_read;
         return to_read;
@@ -203,7 +198,6 @@ void Listener::handleNewConnection() {
          int counter = 10;
          while(write(m_handlers[newfd % HANDLER_ARRAY_SIZE].pipe[1], &newfd, sizeof(newfd)) != sizeof(newfd) || !counter--) {
             if(counter < 10) {
-                std::cout << "sent new socket after " << 10 - counter << " cycles\n";
                 if(!counter)
                     close(newfd);
             }

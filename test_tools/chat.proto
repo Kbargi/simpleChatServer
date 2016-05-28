@@ -1,0 +1,45 @@
+// [START declaration]
+syntax = "proto2";
+package chat;
+// [END declaration]
+
+message Request {
+   enum Type {
+      CREATE_ROOM = 0;
+      JOIN_2_ROOM = 1;
+      DELIVER = 2;
+      UNKNOWN = 3;
+   }
+ 
+   optional Type operation = 1;
+   
+   optional string roomName = 2;
+   optional string roomPassword = 3;
+   
+   optional string userName = 4;
+   optional string userPassword = 5;
+   
+   optional string content = 6;
+}
+
+message Response {
+   enum Type {
+      CREATE_ROOM = 0;
+      JOIN_2_ROOM = 1;
+      DELIVER = 2;
+      UNKNOWN = 3;
+   }
+   
+   optional Type operation = 1;
+   
+   enum ResultCode {
+      OK = 0;
+      ERROR = 1;
+   }
+   
+   optional ResultCode resultCode = 2;
+   optional string resultDescription = 3;
+   
+   optional string roomName = 4;
+   optional string senderName = 5;
+}

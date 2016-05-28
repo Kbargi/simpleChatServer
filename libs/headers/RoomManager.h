@@ -57,13 +57,9 @@ class RoomManager {
       void processJoin(int clientSocket, const std::string& roomName, const std::string& roomPassword, const std::string& userName,
                        const std::string& userPassword);
 
-      struct UsersBulk {
-         Lock m_usersMutex;
-         std::map<int, std::shared_ptr<User>> m_users;
-         std::map<std::string, std::weak_ptr<Room>> m_rooms;
-      } m_usersBulks[BULKS];
-
-      UsersBulk& getBulk(int key) {
-          return m_usersBulks[key % BULKS];
-      }
+      struct InternalData {
+         Lock m_mutex;
+         std::map<int /*socket*/, std::shared_ptr<User>> m_users;
+         std::map<std::string/*room name*/, std::weak_ptr<Room>> m_rooms;
+      } m_internalData;
 };
