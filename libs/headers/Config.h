@@ -14,8 +14,9 @@ class Config {
 
  public:
   Config() = delete;
-  Config(std::string&& mainConf) : m_mainConf(std::move(mainConf)) {}
-  Config(std::string& mainConf) : m_mainConf(mainConf) {}
+  //Config(std::string&& mainConf) : m_mainConf(std::move(mainConf)) {}
+  //Config(std::string& mainConf) : m_mainConf(mainConf) {}
+  Config(std::string mainConf) : m_mainConf(mainConf) {}
   ~Config() {}
 
   void parse() throw();

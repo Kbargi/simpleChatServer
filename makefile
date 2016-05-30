@@ -1,6 +1,6 @@
 export PKG_CONFIG_PATH=${PWD}
 CPP=g++
-CPPFLAGS=--std=c++11 -Wall -lpthread -lboost_system -lboost_thread -pedantic -pthread #-Wextra 
+CPPFLAGS=--std=c++11 -s -Wall -lpthread -lboost_system -lboost_thread -pedantic -pthread -lboost_program_options #-Wextra 
 HEADERS=${PWD}/libs/headers/
 SOURCES=${PWD}/libs/src/
 PBFLAGS=`pkg-config --cflags --libs protobuf`
