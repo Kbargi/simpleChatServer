@@ -1,6 +1,6 @@
-1) improve protocol (add header with size)
+1) improve protocol (add header with size) +
 2) improve performance by multiplying selects +
-3) develop test tools in python and protobuf
+3) develop test tools in python and protobuf +
 4) develop logger class
 5) consider encryption
 6) review locks
