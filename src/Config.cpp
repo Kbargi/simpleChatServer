@@ -1,4 +1,4 @@
-#include "Config.h"
+#include "Config.hpp"
 
 void Config::parse() throw() {
   std::ifstream file;

@@ -12,7 +12,7 @@
 #include <boost/thread/shared_mutex.hpp>
 
 typedef boost::shared_mutex Lock;
-typedef boost::unique_lock<Lock> WriteLock;
+typedef boost::lock_guard<Lock> WriteLock;
 typedef boost::shared_lock<Lock> ReadLock;
 
 template <class T>
@@ -38,7 +38,7 @@ class SharedQueue {
     m_queue.push(v);
   }
 
-  const size_t size() {
+  size_t size() {
     ReadLock l(m_mutex);
     return m_queue.size();
   }
@@ -72,7 +72,7 @@ class PrioritySharedQueue {
     m_queue.push(v);
   }
 
-  const size_t size() {
+  size_t size() {
     ReadLock l(m_mutex);
     return m_queue.size();
   }

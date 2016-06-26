@@ -18,8 +18,8 @@
 #include <atomic>
 #include <memory>
 
-#include "ThreadPool.h"
-#include "SpecificTasks.h"
+#include "ThreadPool.hpp"
+#include "SpecificTasks.hpp"
 
 #define CLIENT_DATA_BUFFER_SIZE 4096
 
@@ -55,24 +55,24 @@ class Handler {
 };
 class Listener {
  public:
-  Listener() = delete;
+  Listener() : m_listener(-1), m_fdmax(-1), m_port(std::string("27015")), m_stop(false) {}
 
-  Listener(const std::string&, size_t);
   virtual ~Listener();
 
-  virtual void init();
+  virtual void init(const std::string&, size_t);
   virtual void run();
   void stop();
 
  private:
+  void initHandlers( size_t poolSize);
   void* get_in_addr(struct sockaddr*);
   void handleNewConnection();
 
   int m_listener;
   int m_fdmax;
   fd_set m_master;
-  const std::string m_port;
-  bool m_stop;
+  std::string m_port;
+  std::atomic<bool> m_stop;
 
   struct InternalHandler {
     std::shared_ptr<Handler> m_handler;

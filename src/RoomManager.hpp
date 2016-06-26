@@ -11,8 +11,8 @@
 #include <map>
 
 #include "chat.pb.h"
-#include "SharedContainers.h"
-#include "User.h"
+#include "SharedContainers.hpp"
+#include "User.hpp"
 
 class Room;
 class RoomManager {

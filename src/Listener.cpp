@@ -1,4 +1,4 @@
-#include "Listener.h"
+#include "Listener.hpp"
 
 void Handler::operator()() {
   std::cout << "Handler " << m_readPipeSocket << " started\n";
@@ -18,6 +18,7 @@ void Handler::operator()() {
       }
     }
   }
+  std::cout << "Handler: " << m_readPipeSocket << "closed properly\n";
 }
 
 void Handler::handleNewConnection() {
@@ -96,29 +97,32 @@ int Handler::recvHeader(int socket, size_t* buffer, size_t size) {
   return 0;
 }
 
-Listener::Listener(const std::string& port, size_t poolSize)
-    : m_listener(-1), m_fdmax(-1), m_port(port), m_stop(false) {
-  std::shared_ptr<ThreadPool> pool(new ThreadPool(poolSize),
-                                   [](ThreadPool* tpP) {
-                                     tpP->stop();
-                                     delete tpP;
-                                   });
-  std::shared_ptr<RoomManager> roomManager = std::make_shared<RoomManager>();
-
-  for (int i = 0; i < HANDLER_ARRAY_SIZE; ++i) {
-    if (pipe(m_handlers[i].pipe) == -1) {
-      throw std::runtime_error(std::string("pipe error"));
-    }
-    m_handlers[i].m_handler =
-        std::make_shared<Handler>(m_handlers[i].pipe[0], pool, roomManager);
-    m_handlers[i].m_handlerExecutor.reset(
-        new std::thread(&Handler::operator(), m_handlers[i].m_handler));
-  }
-}
-
 Listener::~Listener() { stop(); }
 
-void Listener::init() {
+void Listener::initHandlers( size_t poolSize){
+	std::shared_ptr<ThreadPool> pool(new ThreadPool(poolSize),
+	                                   [](ThreadPool* tpP) {
+	                                     tpP->stop();
+	                                     delete tpP;
+	                                   });
+	  std::shared_ptr<RoomManager> roomManager = std::make_shared<RoomManager>();
+
+	  for (int i = 0; i < HANDLER_ARRAY_SIZE; ++i) {
+	    if (pipe(m_handlers[i].pipe) == -1) {
+	      throw std::runtime_error(std::string("pipe error"));
+	    }
+	    m_handlers[i].m_handler =
+	        std::make_shared<Handler>(m_handlers[i].pipe[0], pool, roomManager);
+	    m_handlers[i].m_handlerExecutor.reset(
+	        new std::thread(&Handler::operator(), m_handlers[i].m_handler));
+	  }
+}
+
+void Listener::init(const std::string& port , size_t poolSize) {
+  m_port = port;
+
+  initHandlers(poolSize);
+
   struct addrinfo hints, *ai, *p = NULL;
   int yes = 1, rv;
 
@@ -227,4 +231,6 @@ void Listener::stop() {
       m_handlers[i].m_handlerExecutor->join();
   }
   m_stop = true;
+  close(m_listener);
+  google::protobuf::ShutdownProtobufLibrary();
 }

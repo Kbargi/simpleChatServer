@@ -1,5 +1,5 @@
 #pragma once
-#include "Room.h"
+#include "Room.hpp"
 class User {
  public:
   User(const std::string& name, const std::string& password, const int socket)
@@ -22,7 +22,7 @@ class User {
 
   const std::string& getName() { return m_name; }
   const std::string& getPassword() { return m_password; }
-  const int getSocket() { return m_socket; }
+  int getSocket() { return m_socket; }
 
  private:
   const std::string m_name;

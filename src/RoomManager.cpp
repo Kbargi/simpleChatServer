@@ -1,4 +1,4 @@
-#include "RoomManager.h"
+#include "RoomManager.hpp"
 
 void RoomManager::processEscape(int socket) {
   std::shared_ptr<User> userP;

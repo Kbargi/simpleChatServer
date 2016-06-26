@@ -7,8 +7,8 @@
 #include <condition_variable>
 #include <limits>
 #include <iostream>
-#include "SharedContainers.h"
-#include "AbstractTask.h"
+#include "SharedContainers.hpp"
+#include "AbstractTask.hpp"
 
 class ThreadPool;
 

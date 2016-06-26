@@ -1,6 +1,6 @@
 #include <chrono>
 
-#include "ThreadPool.h"
+#include "ThreadPool.hpp"
 
 ThreadPool::ThreadPool(size_t threads_limit)
     : m_size(threads_limit < 2 ? 2 : threads_limit) {
@@ -10,7 +10,6 @@ ThreadPool::ThreadPool(size_t threads_limit)
     m_pool.push_back(std::make_shared<std::thread>(&ThreadPool::run, this));
   }
   std::cout << "THREADS: " << m_size << "\n";
-  std::this_thread::sleep_for(std::chrono::seconds(4));
 }
 
 void ThreadPool::add(PTask task) {

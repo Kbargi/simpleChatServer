@@ -3,9 +3,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "AbstractTask.h"
-#include "RoomManager.h"
-#include "SharedContainers.h"
+#include "AbstractTask.hpp"
+#include "RoomManager.hpp"
+#include "SharedContainers.hpp"
 
 class RequestHandlerTask : public AbstractTask {
  public:
