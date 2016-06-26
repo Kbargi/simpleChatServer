@@ -55,7 +55,11 @@ class Handler {
 };
 class Listener {
  public:
-  Listener() : m_listener(-1), m_fdmax(-1), m_port(std::string("27015")), m_stop(false) {}
+  Listener()
+      : m_listener(-1),
+        m_fdmax(-1),
+        m_port(std::string("27015")),
+        m_stop(false) {}
 
   virtual ~Listener();
 
@@ -64,7 +68,7 @@ class Listener {
   void stop();
 
  private:
-  void initHandlers( size_t poolSize);
+  void initHandlers(size_t poolSize);
   void* get_in_addr(struct sockaddr*);
   void handleNewConnection();
 

@@ -99,26 +99,26 @@ int Handler::recvHeader(int socket, size_t* buffer, size_t size) {
 
 Listener::~Listener() { stop(); }
 
-void Listener::initHandlers( size_t poolSize){
-	std::shared_ptr<ThreadPool> pool(new ThreadPool(poolSize),
-	                                   [](ThreadPool* tpP) {
-	                                     tpP->stop();
-	                                     delete tpP;
-	                                   });
-	  std::shared_ptr<RoomManager> roomManager = std::make_shared<RoomManager>();
+void Listener::initHandlers(size_t poolSize) {
+  std::shared_ptr<ThreadPool> pool(new ThreadPool(poolSize),
+                                   [](ThreadPool* tpP) {
+                                     tpP->stop();
+                                     delete tpP;
+                                   });
+  std::shared_ptr<RoomManager> roomManager = std::make_shared<RoomManager>();
 
-	  for (int i = 0; i < HANDLER_ARRAY_SIZE; ++i) {
-	    if (pipe(m_handlers[i].pipe) == -1) {
-	      throw std::runtime_error(std::string("pipe error"));
-	    }
-	    m_handlers[i].m_handler =
-	        std::make_shared<Handler>(m_handlers[i].pipe[0], pool, roomManager);
-	    m_handlers[i].m_handlerExecutor.reset(
-	        new std::thread(&Handler::operator(), m_handlers[i].m_handler));
-	  }
+  for (int i = 0; i < HANDLER_ARRAY_SIZE; ++i) {
+    if (pipe(m_handlers[i].pipe) == -1) {
+      throw std::runtime_error(std::string("pipe error"));
+    }
+    m_handlers[i].m_handler =
+        std::make_shared<Handler>(m_handlers[i].pipe[0], pool, roomManager);
+    m_handlers[i].m_handlerExecutor.reset(
+        new std::thread(&Handler::operator(), m_handlers[i].m_handler));
+  }
 }
 
-void Listener::init(const std::string& port , size_t poolSize) {
+void Listener::init(const std::string& port, size_t poolSize) {
   m_port = port;
 
   initHandlers(poolSize);
@@ -187,8 +187,8 @@ void Listener::run() {
           std::cout << "unknown socket " << i << " writes to main select\n";
         }
       }  // END got new incoming connection
-    }  // for through existing connections
-  }  // main while
+    }    // for through existing connections
+  }      // main while
 }  // run
 
 void* Listener::get_in_addr(struct sockaddr* sa) {

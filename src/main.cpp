@@ -7,8 +7,8 @@
 #include <signal.h>
 
 void signal_callback_handler(int signum) {
-	std::cout << "Received signal: " << signum << "\n";
-    Singleton<Listener>::getInstance().stop();
+  std::cout << "Received signal: " << signum << "\n";
+  Singleton<Listener>::getInstance().stop();
 }
 
 int main(int argc, char** argv) {
@@ -38,28 +38,29 @@ int main(int argc, char** argv) {
       }
     }
     struct sigaction sa;
-        // Setup the sighub handler
-        sa.sa_handler = signal_callback_handler;
+    // Setup the sighub handler
+    sa.sa_handler = signal_callback_handler;
 
-        // Block every signal during the handler
-        sigfillset(&sa.sa_mask);
+    // Block every signal during the handler
+    sigfillset(&sa.sa_mask);
 
-        // Intercept SIGHUP and SIGINT
-        if (sigaction(SIGHUP, &sa, NULL) == -1) {
-            std::cout <<"sigaction error\n";
-            exit(1);
-        }
-        if (sigaction(SIGINT, &sa, NULL) == -1) {
-                    std::cout <<"sigaction error\n";
-                    exit(1);
-                }
+    // Intercept SIGHUP and SIGINT
+    if (sigaction(SIGHUP, &sa, NULL) == -1) {
+      std::cout << "sigaction error\n";
+      exit(1);
+    }
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+      std::cout << "sigaction error\n";
+      exit(1);
+    }
 
     Config conf(vm["config"].as<std::string>());
     conf.parse();
     // conf.dump();
 
-    Singleton<Listener>::getInstance().init(conf.get<std::string>("NETWORK", "PORT"),
-            conf.get("PERFORMANCE", "THREADS", 4));
+    Singleton<Listener>::getInstance().init(
+        conf.get<std::string>("NETWORK", "PORT"),
+        conf.get("PERFORMANCE", "THREADS", 4));
 
     Singleton<Listener>::getInstance().run();
 

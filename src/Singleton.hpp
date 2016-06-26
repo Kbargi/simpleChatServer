@@ -5,18 +5,18 @@
 
 template <typename T>
 class Singleton {
-public:
-	Singleton() = delete;
-	Singleton(const Singleton& ) = delete;
+ public:
+  Singleton() = delete;
+  Singleton(const Singleton&) = delete;
 
-	static T& getInstance() {
-		std::call_once(m_flag, [] {m_instance.reset(new T);});
-    	return *m_instance.get();
-	}
+  static T& getInstance() {
+    std::call_once(m_flag, [] { m_instance.reset(new T); });
+    return *m_instance.get();
+  }
 
-private:
-	static std::unique_ptr<T> m_instance;
-	static std::once_flag m_flag;
+ private:
+  static std::unique_ptr<T> m_instance;
+  static std::once_flag m_flag;
 };
 
 template <typename T>
