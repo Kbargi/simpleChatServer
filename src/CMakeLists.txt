@@ -10,6 +10,7 @@ protobuf_generate_cpp(PROTO_SRC PROTO_INCL chat.proto)
 # get all *.cpp files recursively
 file(GLOB_RECURSE SRC_FILES ${PROJECT_SOURCE_DIR}/Config.cpp
                             ${PROJECT_SOURCE_DIR}/RoomManager.cpp
+                            ${PROJECT_SOURCE_DIR}/App.cpp
                             ${PROJECT_SOURCE_DIR}/SpecificTasks.cpp
                             ${PROJECT_SOURCE_DIR}/ThreadPool.cpp
                             ${PROJECT_SOURCE_DIR}/Listener.cpp)

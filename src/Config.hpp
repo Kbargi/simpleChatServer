@@ -6,6 +6,7 @@
 #include <map>
 #include <algorithm>
 
+#include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 
 class Config {
@@ -14,9 +15,7 @@ class Config {
 
  public:
   Config() = delete;
-  // Config(std::string&& mainConf) : m_mainConf(std::move(mainConf)) {}
-  // Config(std::string& mainConf) : m_mainConf(mainConf) {}
-  Config(std::string mainConf) : m_mainConf(mainConf) {}
+  Config(const std::string&);
   ~Config() {}
 
   void parse() throw();

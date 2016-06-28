@@ -1,5 +1,9 @@
 #include "Config.hpp"
 
+
+Config::Config(const std::string& confPath) : m_mainConf(confPath) {
+
+}
 void Config::parse() throw() {
   std::ifstream file;
   std::string section = "[DEFAULT]";

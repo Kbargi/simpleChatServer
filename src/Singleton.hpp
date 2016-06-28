@@ -6,13 +6,16 @@
 template <typename T>
 class Singleton {
  public:
-  Singleton() = delete;
   Singleton(const Singleton&) = delete;
+  const Singleton& operator=(const Singleton&) = delete;
 
   static T& getInstance() {
     std::call_once(m_flag, [] { m_instance.reset(new T); });
     return *m_instance.get();
   }
+
+ protected:
+  Singleton() {}
 
  private:
   static std::unique_ptr<T> m_instance;
