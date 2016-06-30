@@ -12,7 +12,6 @@ class App : public Singleton<App> {
   friend class Singleton<App>;
 
  public:
-  App() {}
 
   void init(int argc, char** argv);
   void run();
@@ -20,6 +19,8 @@ class App : public Singleton<App> {
   void handleSignal(int);
 
  private:
+  App() {}
+
   void demonize();
   void version();
 
